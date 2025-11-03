@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "30152955265",
+    "project_id": "somashare-1e9fb",
+    "storage_bucket": "somashare-1e9fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30152955265:android:edd305ecbd5371fa714480",
+        "android_client_info": {
+          "package_name": "com.example.somashare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAh3lrKsZTOD4Wcs4dF0Pc0t8RLclCmHJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
