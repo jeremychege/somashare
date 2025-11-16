@@ -1,19 +1,24 @@
 package com.example.somashare.data.model
 
 data class PastPaper(
-    val paperId: Int = 0,
-    val paperName: String,
-    val unit: Unit,
-    val yearOfStudy: Int,
-    val semesterOfStudy: Int,
-    val paperYear: Int,
-    val paperType: PaperType,
-    val filePath: String,
-    val fileSize: Long? = null,
+    val paperId: String = "",
+    val paperName: String = "",
+    val unitId: String = "",
+    val unitCode: String = "",
+    val unitName: String = "",
+    val yearOfStudy: Int = 0,
+    val semesterOfStudy: Int = 0,
+    val paperYear: Int = 0,
+    val paperType: PaperType = PaperType.FINAL_EXAM,
+    val filePath: String = "",
+    val fileSize: Long = 0,
     val uploadDate: Long = System.currentTimeMillis(),
+    val uploadedBy: String = "",
     val downloadCount: Int = 0,
+    val viewCount: Int = 0,
     val isVerified: Boolean = false,
-    val averageRating: Float? = null,
+    val isActive: Boolean = true,
+    val averageRating: Float = 0f,
     val ratingCount: Int = 0
 )
 

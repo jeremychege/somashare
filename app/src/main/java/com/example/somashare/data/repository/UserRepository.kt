@@ -1,83 +1,57 @@
 package com.example.somashare.data.repository
 
-import com.example.somashare.data.local.dao.UserDao
-import com.example.somashare.data.local.entity.UserEntity
 import com.example.somashare.data.model.User
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
-class UserRepository(private val userDao: UserDao) {
+class UserRepository {
+    private val firestore = FirebaseFirestore.getInstance()
 
-    fun getUserById(userId: Int): Flow<User?> {
-        return userDao.getUserById(userId).map { it?.toModel() }
+    // Get user by ID (real-time)
+    fun getUserById(userId: String): Flow<User?> = callbackFlow {
+        val listener = firestore.collection("users")
+            .document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                val user = snapshot?.toObject(User::class.java)
+                trySend(user)
+            }
+
+        awaitClose { listener.remove() }
     }
 
-    suspend fun getUserByEmail(email: String): User? {
-        return userDao.getUserByEmail(email)?.toModel()
+    // Update user profile
+    suspend fun updateUser(userId: String, updates: Map<String, Any>): Result<Unit> {
+        return try {
+            firestore.collection("users")
+                .document(userId)
+                .update(updates)
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    fun getAllActiveUsers(): Flow<List<User>> {
-        return userDao.getAllActiveUsers().map { list -> list.map { it.toModel() } }
-    }
-
-    suspend fun insertUser(user: User, password: String): Long {
-        val entity = user.toEntity(password)
-        return userDao.insertUser(entity)
-    }
-
-    suspend fun updateUser(user: User) {
-        val existingUser = userDao.getUserByEmail(user.email)
-        existingUser?.let {
-            val updated = it.copy(
-                fullName = user.fullName,
-                yearOfStudy = user.yearOfStudy,
-                semesterOfStudy = user.semesterOfStudy,
-                department = user.department,
-                updatedAt = System.currentTimeMillis()
+    // Update year and semester
+    suspend fun updateYearAndSemester(
+        userId: String,
+        year: Int,
+        semester: Int
+    ): Result<Unit> {
+        return updateUser(
+            userId,
+            mapOf(
+                "yearOfStudy" to year,
+                "semesterOfStudy" to semester
             )
-            userDao.updateUser(updated)
-        }
+        )
     }
-
-    suspend fun updateYearAndSemester(userId: Int, year: Int, semester: Int) {
-        userDao.updateUserYearAndSemester(userId, year, semester)
-    }
-
-    suspend fun authenticateUser(email: String, password: String): User? {
-        val user = userDao.getUserByEmail(email)
-        return if (user != null && user.passwordHash == hashPassword(password)) {
-            user.toModel()
-        } else {
-            null
-        }
-    }
-
-    private fun hashPassword(password: String): String {
-        // TODO: Implement proper password hashing (bcrypt, argon2, etc.)
-        // For now, using simple hash (NOT SECURE - replace in production!)
-        return password.hashCode().toString()
-    }
-
-    private fun UserEntity.toModel() = User(
-        userId = userId,
-        email = email,
-        fullName = fullName,
-        yearOfStudy = yearOfStudy,
-        semesterOfStudy = semesterOfStudy,
-        department = department,
-        isActive = isActive
-    )
-
-    private fun User.toEntity(password: String) = UserEntity(
-        userId = userId,
-        email = email,
-        passwordHash = hashPassword(password),
-        fullName = fullName,
-        yearOfStudy = yearOfStudy,
-        semesterOfStudy = semesterOfStudy,
-        department = department,
-        isActive = isActive
-    )
-
-
 }
