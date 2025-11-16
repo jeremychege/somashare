@@ -54,6 +54,8 @@ dependencies {
 
     // Room Database (we'll use this later)
     implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.foundation.layout)
+    implementation(libs.androidx.foundation.lint)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
 
@@ -71,6 +73,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.ui.tooling.preview)
     implementation(libs.androidx.media3.exoplayer)
     testImplementation(libs.junit)
@@ -80,8 +83,29 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Firebase BOM (Bill of Materials) - USE THIS!
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.core)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.analytics)
+
+
+
+
     debugImplementation(libs.ui.tooling)
+    //implementation(libs.firebase.analytics.ktx)
+    //implementation(libs.firebase.core)
+
+    // PDF Viewer
+    implementation(libs.android.pdf.viewer)
+
+    // Image Loading
+    implementation(libs.coil.compose)
+
+    // Date/Time
+    implementation(libs.kotlinx.datetime)
+
 }

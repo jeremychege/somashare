@@ -1,7 +1,6 @@
 package com.example.somashare
 
 import android.app.Application
-import com.example.somashare.data.local.AppDatabase
 
 class SomaShareApplication : Application() {
 
