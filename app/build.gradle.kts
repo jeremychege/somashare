@@ -87,10 +87,32 @@ dependencies {
     // Firebase BOM (Bill of Materials) - USE THIS!
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
-    implementation(libs.firebase.core)
+
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
     implementation(libs.firebase.analytics)
+
+    //implementation (libs.google.firebase.core)
+
+    // 1. Import the Firebase BoM (Bill of Materials)
+    // The BoM ensures all Firebase libraries use compatible versions.
+//    implementation(platform('com.google.firebase:firebase-bom:34.6.0')) // <-- LATEST BoM VERSION
+
+    // 2. Declare Firebase products WITHOUT specifying a version:
+
+    // Core (Functionality for all Firebase products)
+    // Note: firebase-core is essentially deprecated and functionality is included in other libs.
+    // If you need it for legacy reasons, it's:
+//    implementation ("com.google.firebase:firebase-core")
+//
+//    // Analytics (Recommended for all Firebase projects)
+//    implementation ("com.google.firebase:firebase-analytics")
+//
+//    // Authentication (Auth)
+//    implementation ("com.google.firebase:firebase-auth")
+//
+//    // Cloud Storage (Storage)
+//    implementation ("com.google.firebase:firebase-storage")
 
 
 
@@ -100,12 +122,12 @@ dependencies {
     //implementation(libs.firebase.core)
 
     // PDF Viewer
-    implementation(libs.android.pdf.viewer)
+    //implementation(libs.android.pdf.viewer)
 
     // Image Loading
-    implementation(libs.coil.compose)
+ //   implementation(libs.coil.compose)
 
     // Date/Time
-    implementation(libs.kotlinx.datetime)
+   // implementation(libs.kotlinx.datetime)
 
 }

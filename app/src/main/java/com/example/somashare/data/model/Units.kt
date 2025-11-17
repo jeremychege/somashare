@@ -1,7 +1,7 @@
 package com.example.somashare.data.model
 
 
-data class Unit(
+data class Units(
     val unitId: String = "",
     val unitCode: String = "",
     val unitName: String = "",

@@ -1,6 +1,7 @@
 package com.example.somashare.navigation
 
-import androidx.compose.runtime.*
+import android.R.attr.type
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -8,18 +9,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.somashare.ui.auth.LoginScreen
-import com.example.somashare.ui.auth.RegisterScreen
 import com.example.somashare.ui.auth.OnboardingScreen
+import com.example.somashare.ui.auth.RegisterScreen
+import com.example.somashare.ui.favorites.FavoritesScreen
 import com.example.somashare.ui.home.HomeScreen
-import com.example.somashare.ui.search.SearchScreen
-import com.example.somashare.ui.recommendations.RecommendationsScreen
-import com.example.somashare.ui.recentlyopened.RecentlyOpenedScreen
-import com.example.somashare.ui.unitdetails.UnitDetailsScreen
-import com.example.somashare.ui.pdfviewer.PdfViewerScreen
-import com.example.somashare.ui.profile.ProfileScreen
 import com.example.somashare.ui.profile.EditProfileScreen
 import com.example.somashare.ui.profile.SettingsScreen
-import com.example.somashare.ui.favorites.FavoritesScreen
+import com.example.somashare.ui.recentlyopened.RecentlyOpenedScreen
+import com.example.somashare.ui.recommendations.RecommendationsScreen
+import com.example.somashare.ui.search.SearchScreen
+import com.example.somashare.ui.unitdetails.UnitDetailsScreen
 import com.example.somashare.ui.upload.UploadScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -109,15 +108,8 @@ fun NavGraph(
         composable(Screen.Search.route) {
             SearchScreen(
                 navController = navController,
-                onNavigateBack = {
-                    navController.navigateUp()
-                },
-                onNavigateToUnitDetails = { unitId ->
-                    navController.navigate(Screen.UnitDetails.createRoute(unitId))
-                },
-                onNavigateToPdfViewer = { paperId ->
-                    navController.navigate(Screen.PdfViewer.createRoute(paperId))
-                }
+
+
             )
         }
 

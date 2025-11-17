@@ -54,7 +54,7 @@ fun PaperCard(
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            paper.unit.unitCode,
+                            paper.unitCode,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,

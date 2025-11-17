@@ -1,9 +1,8 @@
 package com.example.somashare.data.repository
 
-import com.example.somashare.data.model.Unit
 import com.example.somashare.data.model.Lecturer
+import com.example.somashare.data.model.Units
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,7 +12,7 @@ class UnitRepository {
     private val firestore = FirebaseFirestore.getInstance()
 
     // Get all units (real-time)
-    fun getAllUnits(): Flow<List<Unit>> = callbackFlow {
+    fun getAllUnits(): Flow<List<Units>> = callbackFlow {
         val listener = firestore.collection("units")
             .orderBy("unitCode")
             .addSnapshotListener { snapshot, error ->
@@ -23,7 +22,7 @@ class UnitRepository {
                 }
 
                 val units = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Unit::class.java)?.copy(unitId = doc.id)
+                    doc.toObject(Units::class.java)?.copy(unitId = doc.id)
                 } ?: emptyList()
 
                 trySend(units)
@@ -33,7 +32,7 @@ class UnitRepository {
     }
 
     // Get units by year and semester (real-time)
-    fun getUnitsByYearAndSemester(year: Int, semester: Int): Flow<List<Unit>> = callbackFlow {
+    fun getUnitsByYearAndSemester(year: Int, semester: Int): Flow<List<Units>> = callbackFlow {
         val listener = firestore.collection("units")
             .whereEqualTo("yearOfStudy", year)
             .whereEqualTo("semesterOfStudy", semester)
@@ -45,7 +44,7 @@ class UnitRepository {
                 }
 
                 val units = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Unit::class.java)?.copy(unitId = doc.id)
+                    doc.toObject(Units::class.java)?.copy(unitId = doc.id)
                 } ?: emptyList()
 
                 trySend(units)
@@ -55,7 +54,7 @@ class UnitRepository {
     }
 
     // Get unit by ID
-    fun getUnitById(unitId: String): Flow<Unit?> = callbackFlow {
+    fun getUnitById(unitId: String): Flow<Units?> = callbackFlow {
         val listener = firestore.collection("units")
             .document(unitId)
             .addSnapshotListener { snapshot, error ->
@@ -64,15 +63,15 @@ class UnitRepository {
                     return@addSnapshotListener
                 }
 
-                val unit = snapshot?.toObject(Unit::class.java)?.copy(unitId = snapshot.id)
-                trySend(unit)
+                val units = snapshot?.toObject(Units::class.java)?.copy(unitId = snapshot.id)
+                trySend(units)
             }
 
         awaitClose { listener.remove() }
     }
 
     // Search units
-    fun searchUnits(query: String): Flow<List<Unit>> = callbackFlow {
+    fun searchUnits(query: String): Flow<List<Units>> = callbackFlow {
         val listener = firestore.collection("units")
             .orderBy("unitName")
             .addSnapshotListener { snapshot, error ->
@@ -82,7 +81,7 @@ class UnitRepository {
                 }
 
                 val allUnits = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Unit::class.java)?.copy(unitId = doc.id)
+                    doc.toObject(Units::class.java)?.copy(unitId = doc.id)
                 } ?: emptyList()
 
                 // Client-side filtering (Firestore doesn't support LIKE)
@@ -123,9 +122,9 @@ class UnitRepository {
     }
 
     // Add new unit
-    suspend fun addUnit(unit: Unit): Result<String> {
+    suspend fun addUnit(units: Units): Result<String> {
         return try {
-            val docRef = firestore.collection("units").add(unit).await()
+            val docRef = firestore.collection("units").add(units).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)
