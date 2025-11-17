@@ -64,6 +64,16 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
 
+    implementation("com.google.firebase:firebase-storage-ktx")
+
+    // PDF Viewer - AndroidPdfViewer
+    implementation("com.github.barteksc:android-pdf-viewer:3.2.0-beta.1")
+
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // Material Icons Extended
+    implementation("androidx.compose.material:material-icons-extended:1.5.4")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -85,6 +95,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     // Firebase BOM (Bill of Materials) - USE THIS!
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.core)
