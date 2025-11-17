@@ -1,195 +1,213 @@
-package com.example.somashare.userinterface.upload
+package com.example.somashare.ui.upload
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.somashare.data.repository.FirebaseRepository
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
+import com.example.somashare.data.model.PaperType
+import com.example.somashare.data.model.PastPaper
+import com.example.somashare.data.model.Unit
+import com.example.somashare.data.repository.AuthRepository
+import com.example.somashare.data.repository.PaperRepository
+import com.example.somashare.data.repository.StorageRepository
+import com.example.somashare.data.repository.UnitRepository
+import com.example.somashare.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import java.util.UUID
 
 data class UploadUiState(
     val isLoading: Boolean = false,
-    val uploadProgress: Float = 0f,
-    val resourceName: String = "",
-    val selectedCourse: String = "",
-    val selectedYear: Int = 1,
-    val selectedSemester: Int = 1,
+    val units: List<Unit> = emptyList(),
+    val selectedUnit: Unit? = null,
+    val pdfUri: Uri? = null,
+    val pdfName: String = "",
+    val pdfSize: Long = 0,
+    val paperName: String = "",
+    val paperYear: Int = 2024,
+    val paperType: PaperType = PaperType.FINAL_EXAM,
     val lecturerName: String = "",
-    val selectedFileUri: Uri? = null,
-    val selectedFileName: String = "",
-    val courses: List<String> = listOf(
-        "Computer Science",
-        "Information Technology",
-        "Software Engineering",
-        "Business IT",
-        "Data Science",
-        "Cybersecurity"
-    ),
+    val isUploading: Boolean = false,
+    val uploadProgress: Int = 0,
     val error: String? = null,
-    val uploadSuccess: Boolean = false
+    val uploadedPaperId: String? = null
 )
 
-class UploadViewModel(
-    private val firebaseRepository: FirebaseRepository = FirebaseRepository()
-) : ViewModel() {
-
-    private val storage = FirebaseStorage.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
+class UploadViewModel : ViewModel() {
+    private val authRepository = AuthRepository()
+    private val unitRepository = UnitRepository()
+    private val paperRepository = PaperRepository()
+    private val storageRepository = StorageRepository()
+    private val userRepository = UserRepository()
 
     private val _uiState = MutableStateFlow(UploadUiState())
     val uiState: StateFlow<UploadUiState> = _uiState.asStateFlow()
 
-    fun onResourceNameChange(name: String) {
-        _uiState.value = _uiState.value.copy(resourceName = name)
+    init {
+        loadUnits()
     }
 
-    fun onCourseSelected(course: String) {
-        _uiState.value = _uiState.value.copy(selectedCourse = course)
-    }
-
-    fun onYearSelected(year: Int) {
-        _uiState.value = _uiState.value.copy(selectedYear = year)
-    }
-
-    fun onSemesterSelected(semester: Int) {
-        _uiState.value = _uiState.value.copy(selectedSemester = semester)
-    }
-
-    fun onLecturerNameChange(name: String) {
-        _uiState.value = _uiState.value.copy(lecturerName = name)
-    }
-
-    fun onFileSelected(uri: Uri, fileName: String) {
-        _uiState.value = _uiState.value.copy(
-            selectedFileUri = uri,
-            selectedFileName = fileName
-        )
-    }
-
-    fun clearFile() {
-        _uiState.value = _uiState.value.copy(
-            selectedFileUri = null,
-            selectedFileName = ""
-        )
-    }
-
-    fun uploadResource() {
+    private fun loadUnits() {
         viewModelScope.launch {
-            val state = _uiState.value
+            _uiState.update { it.copy(isLoading = true) }
 
-            // Validation
-            if (state.resourceName.isBlank()) {
-                _uiState.value = state.copy(error = "Please enter a resource name")
-                return@launch
-            }
-
-            if (state.selectedCourse.isBlank()) {
-                _uiState.value = state.copy(error = "Please select a course")
-                return@launch
-            }
-
-            if (state.selectedFileUri == null) {
-                _uiState.value = state.copy(error = "Please select a PDF file")
-                return@launch
-            }
-
-            val userId = firebaseRepository.getCurrentUserId()
-            if (userId == null) {
-                _uiState.value = state.copy(error = "User not logged in")
-                return@launch
-            }
-
-            _uiState.value = state.copy(isLoading = true, error = null)
-
-            try {
-                // 1. Upload PDF to Firebase Storage
-                val fileName = "resources/${UUID.randomUUID()}_${state.selectedFileName}"
-                val storageRef = storage.reference.child(fileName)
-
-                // Upload with progress tracking
-                val uploadTask = storageRef.putFile(state.selectedFileUri)
-
-                uploadTask.addOnProgressListener { taskSnapshot ->
-                    val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toFloat() / 100
-                    _uiState.value = _uiState.value.copy(uploadProgress = progress)
+            unitRepository.getAllUnits().collect { units ->
+                _uiState.update {
+                    it.copy(
+                        units = units.sortedBy { unit -> unit.unitCode },
+                        isLoading = false
+                    )
                 }
+            }
+        }
+    }
 
-                uploadTask.await()
+    fun selectUnit(unit: Unit) {
+        _uiState.update { it.copy(selectedUnit = unit) }
+    }
 
-                // 2. Get download URL
-                val downloadUrl = storageRef.downloadUrl.await().toString()
+    fun setPdfUri(uri: Uri, name: String, size: Long) {
+        _uiState.update {
+            it.copy(
+                pdfUri = uri,
+                pdfName = name,
+                pdfSize = size,
+                paperName = if (it.paperName.isEmpty()) name.removeSuffix(".pdf") else it.paperName
+            )
+        }
+    }
 
-                // 3. Get file size
-                val fileMetadata = storageRef.metadata.await()
-                val fileSize = fileMetadata.sizeBytes
+    fun updatePaperName(name: String) {
+        _uiState.update { it.copy(paperName = name) }
+    }
 
-                // 4. Create resource document in Firestore
-                val resourceId = UUID.randomUUID().toString()
-                val resourceData = hashMapOf(
-                    "resourceId" to resourceId,
-                    "resourceName" to state.resourceName,
-                    "course" to state.selectedCourse,
-                    "yearOfStudy" to state.selectedYear,
-                    "semester" to state.selectedSemester,
-                    "lecturerName" to state.lecturerName.ifBlank { null },
-                    "fileUrl" to downloadUrl,
-                    "fileName" to state.selectedFileName,
-                    "fileSize" to fileSize,
-                    "uploadedBy" to userId,
-                    "uploadDate" to System.currentTimeMillis(),
-                    "downloadCount" to 0,
-                    "verified" to false
-                )
+    fun updatePaperYear(year: Int) {
+        _uiState.update { it.copy(paperYear = year) }
+    }
 
-                firestore.collection("resources")
-                    .document(resourceId)
-                    .set(resourceData)
-                    .await()
+    fun updatePaperType(type: PaperType) {
+        _uiState.update { it.copy(paperType = type) }
+    }
 
-                // 5. Add to user's uploaded resources
-                val uploadedResourceData = hashMapOf(
-                    "resourceId" to resourceId,
-                    "paperId" to 0, // You can link this to your local database if needed
-                    "paperName" to state.resourceName,
-                    "unitName" to state.selectedCourse,
-                    "uploadDate" to System.currentTimeMillis(),
-                    "userId" to userId
-                )
+    fun updateLecturerName(name: String) {
+        _uiState.update { it.copy(lecturerName = name) }
+    }
 
-                firestore.collection("uploaded_resources")
-                    .add(uploadedResourceData)
-                    .await()
+    fun uploadPaper() {
+        val state = _uiState.value
+        val userId = authRepository.getCurrentUserId()
 
-                // 6. Increment user's uploaded count
-                firebaseRepository.incrementUploadedCount(userId)
+        if (userId == null) {
+            _uiState.update { it.copy(error = "User not authenticated") }
+            return
+        }
 
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    uploadSuccess = true,
-                    uploadProgress = 1f
-                )
+        if (state.pdfUri == null) {
+            _uiState.update { it.copy(error = "Please select a PDF file") }
+            return
+        }
 
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "Upload failed: ${e.message}",
-                    uploadProgress = 0f
+        if (state.selectedUnit == null) {
+            _uiState.update { it.copy(error = "Please select a unit") }
+            return
+        }
+
+        if (state.paperName.isBlank()) {
+            _uiState.update { it.copy(error = "Please enter a paper name") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUploading = true, error = null) }
+
+            // Step 1: Upload PDF to Firebase Storage
+            val storageResult = storageRepository.uploadPdf(
+                fileUri = state.pdfUri,
+                unitId = state.selectedUnit.unitId,
+                fileName = state.paperName,
+                onProgress = { progress ->
+                    _uiState.update { it.copy(uploadProgress = progress) }
+                }
+            )
+
+            if (storageResult.isFailure) {
+                _uiState.update {
+                    it.copy(
+                        isUploading = false,
+                        uploadProgress = 0,
+                        error = storageResult.exceptionOrNull()?.message ?: "Upload failed"
+                    )
+                }
+                return@launch
+            }
+
+            val filePath = storageResult.getOrNull() ?: ""
+
+            // Step 2: Create paper document in Firestore
+            val paper = PastPaper(
+                paperName = state.paperName,
+                unitId = state.selectedUnit.unitId,
+                unitCode = state.selectedUnit.unitCode,
+                unitName = state.selectedUnit.unitName,
+                yearOfStudy = state.selectedUnit.yearOfStudy,
+                semesterOfStudy = state.selectedUnit.semesterOfStudy,
+                paperYear = state.paperYear,
+                paperType = state.paperType,
+                filePath = filePath,
+                fileSize = state.pdfSize,
+                uploadDate = System.currentTimeMillis(),
+                uploadedBy = userId,
+                downloadCount = 0,
+                viewCount = 0,
+                isVerified = false,
+                isActive = true,
+                averageRating = 0f,
+                ratingCount = 0
+            )
+
+            val paperResult = paperRepository.uploadPaper(paper)
+
+            if (paperResult.isFailure) {
+                // Clean up uploaded file
+                storageRepository.deleteFile(filePath)
+
+                _uiState.update {
+                    it.copy(
+                        isUploading = false,
+                        uploadProgress = 0,
+                        error = "Failed to save paper details"
+                    )
+                }
+                return@launch
+            }
+
+            val paperId = paperResult.getOrNull() ?: ""
+
+            // Step 3: Increment user's uploaded papers count
+            userRepository.incrementUploadedPapersCount(userId)
+
+            // Step 4: Success!
+            _uiState.update {
+                it.copy(
+                    isUploading = false,
+                    uploadProgress = 100,
+                    uploadedPaperId = paperId
                 )
             }
         }
     }
 
-    fun resetUploadState() {
-        _uiState.value = UploadUiState()
+    fun resetUpload() {
+        _uiState.update {
+            UploadUiState(
+                units = it.units,
+                isLoading = false
+            )
+        }
     }
 
     fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+        _uiState.update { it.copy(error = null) }
     }
 }

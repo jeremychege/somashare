@@ -8,6 +8,33 @@ class StorageRepository {
     private val storage = FirebaseStorage.getInstance()
     private val storageRef = storage.reference
 
+    // Upload profile photo
+    suspend fun uploadProfilePhoto(
+        fileUri: Uri,
+        userId: String,
+        onProgress: (Int) -> Unit = {}
+    ): Result<String> {
+        return try {
+            val timestamp = System.currentTimeMillis()
+            val path = "profile_photos/$userId/profile_$timestamp.jpg"
+            val fileRef = storageRef.child(path)
+
+            val uploadTask = fileRef.putFile(fileUri)
+
+            uploadTask.addOnProgressListener { taskSnapshot ->
+                val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
+                onProgress(progress)
+            }
+
+            uploadTask.await()
+            val downloadUrl = fileRef.downloadUrl.await().toString()
+
+            Result.success(downloadUrl)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Upload PDF file
     suspend fun uploadPdf(
         fileUri: Uri,

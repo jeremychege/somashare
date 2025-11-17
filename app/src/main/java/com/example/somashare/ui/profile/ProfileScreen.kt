@@ -1,4 +1,4 @@
-package com.example.somashare.userinterface.profile
+package com.example.somashare.ui.profile
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,38 +21,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import java.text.SimpleDateFormat
-import java.util.*
+import com.example.somashare.ui.components.LoadingScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    navController: NavController,
     viewModel: ProfileViewModel = viewModel(),
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit,
+    onNavigateToEditProfile: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToFavorites: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
 
-    var editedName by remember { mutableStateOf("") }
-    var editedCourse by remember { mutableStateOf("") }
-    var editedYear by remember { mutableIntStateOf(1) }
-
-    // Image picker launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(
+    // Photo picker launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { viewModel.uploadProfilePhoto(it) }
     }
 
-    // Show delete photo confirmation dialog
-    var showDeletePhotoDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.profile) {
-        uiState.profile?.let { profile ->
-            editedName = profile.fullName
-            editedCourse = profile.course
-            editedYear = profile.yearOfStudy
+    // Show messages
+    LaunchedEffect(uiState.successMessage, uiState.error) {
+        if (uiState.successMessage != null || uiState.error != null) {
+            kotlinx.coroutines.delay(3000)
+            viewModel.clearMessages()
         }
     }
 
@@ -67,548 +67,407 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
-                    if (!uiState.isEditMode) {
-                        IconButton(onClick = { viewModel.toggleEditMode() }) {
-                            Icon(Icons.Default.Edit, "Edit Profile")
-                        }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, "Settings")
                     }
                 }
             )
         }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            when {
-                uiState.isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                uiState.profile != null -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) { padding ->
+        if (uiState.isLoading && uiState.user == null) {
+            LoadingScreen()
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Profile Header
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF4F46E5)
+                        )
                     ) {
-                        // Profile Photo Section
-                        item {
-                            ProfilePhotoSection(
-                                photoUrl = uiState.profile?.photoUrl,
-                                isUploading = uiState.uploadingPhoto,
-                                onPhotoClick = { imagePickerLauncher.launch("image/*") },
-                                onDeleteClick = { showDeletePhotoDialog = true }
-                            )
-                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Profile Photo
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .border(4.dp, Color.White, CircleShape)
+                                    .clickable { photoPickerLauncher.launch("image/*") }
+                            ) {
+                                if (uiState.user?.profilePhotoUrl.isNullOrEmpty()) {
+                                    // Placeholder
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(60.dp),
+                                            tint = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                } else {
+                                    AsyncImage(
+                                        model = uiState.user?.profilePhotoUrl,
+                                        contentDescription = "Profile Photo",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
 
-                        // Profile Info Section
-                        item {
-                            if (uiState.isEditMode) {
-                                EditProfileSection(
-                                    name = editedName,
-                                    course = editedCourse,
-                                    year = editedYear,
-                                    onNameChange = { editedName = it },
-                                    onCourseChange = { editedCourse = it },
-                                    onYearChange = { editedYear = it },
-                                    onSave = {
-                                        viewModel.updateProfile(editedName, editedCourse, editedYear)
-                                    },
-                                    onCancel = { viewModel.toggleEditMode() }
+                                // Upload indicator
+                                if (uiState.isUploadingPhoto) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.5f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            progress = uiState.uploadPhotoProgress / 100f,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                // Camera icon overlay
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.CameraAlt,
+                                        contentDescription = "Change Photo",
+                                        tint = Color(0xFF4F46E5),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = uiState.user?.fullName ?: "User Name",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = uiState.user?.email ?: "",
+                                fontSize = 14.sp,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Course and Year
+                            Surface(
+                                color = Color.White.copy(alpha = 0.2f),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    text = "${uiState.user?.course ?: "Course"} • Year ${uiState.user?.yearOfStudy ?: 0}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = Color.White,
+                                    fontSize = 12.sp
                                 )
-                            } else {
-                                ProfileInfoCard(profile = uiState.profile!!)
-                            }
-                        }
-
-                        // Stats Section
-                        item {
-                            StatsCard(
-                                uploadedCount = uiState.uploadedResources.size,
-                                downloadedCount = uiState.downloadedResources.size
-                            )
-                        }
-
-                        // Resources Tabs
-                        item {
-                            ResourcesTabs(
-                                selectedTab = uiState.showResourcesTab,
-                                onTabSelected = { viewModel.switchResourcesTab(it) }
-                            )
-                        }
-
-                        // Resources List
-                        when (uiState.showResourcesTab) {
-                            ResourcesTab.UPLOADED -> {
-                                items(uiState.uploadedResources) { resource ->
-                                    UploadedResourceItem(resource = resource)
-                                }
-                            }
-                            ResourcesTab.DOWNLOADED -> {
-                                items(uiState.downloadedResources) { resource ->
-                                    DownloadedResourceItem(resource = resource)
-                                }
                             }
                         }
                     }
                 }
-                else -> {
-                    Text(
-                        text = uiState.error ?: "Unable to load profile",
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+
+                // Stats Row
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatCard(
+                            title = "Uploaded",
+                            value = uiState.user?.uploadedPapersCount?.toString() ?: "0",
+                            icon = Icons.Default.Upload,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        StatCard(
+                            title = "Downloaded",
+                            value = uiState.user?.downloadedPapersCount?.toString() ?: "0",
+                            icon = Icons.Default.Download,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        StatCard(
+                            title = "Favorites",
+                            value = "0",
+                            icon = Icons.Default.Star,
+                            modifier = Modifier.weight(1f),
+                            onClick = onNavigateToFavorites
+                        )
+                    }
+                }
+
+                // Edit Profile Button
+                item {
+                    Button(
+                        onClick = onNavigateToEditProfile,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4F46E5)
+                        )
+                    ) {
+                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Edit Profile")
+                    }
+                }
+
+                // Tabs
+                item {
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.White
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("Uploaded (${uiState.uploadedPapers.size})") }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("Downloaded (${uiState.downloadedPapers.size})") }
+                        )
+                    }
+                }
+
+                // Content based on selected tab
+                if (selectedTab == 0) {
+                    // Uploaded Papers
+                    if (uiState.uploadedPapers.isEmpty()) {
+                        item {
+                            EmptyState(
+                                icon = Icons.Default.Upload,
+                                message = "No uploaded papers yet"
+                            )
+                        }
+                    } else {
+                        items(uiState.uploadedPapers) { paper ->
+                            PaperListItem(paper = paper)
+                        }
+                    }
+                } else {
+                    // Downloaded Papers
+                    if (uiState.downloadedPapers.isEmpty()) {
+                        item {
+                            EmptyState(
+                                icon = Icons.Default.Download,
+                                message = "No downloaded papers yet"
+                            )
+                        }
+                    } else {
+                        items(uiState.downloadedPapers) { paper ->
+                            PaperListItem(paper = paper)
+                        }
+                    }
+                }
+
+                // Logout Button
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedButton(
+                        onClick = { showLogoutDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFEF4444)
+                        )
+                    ) {
+                        Icon(Icons.Default.Logout, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Logout")
+                    }
                 }
             }
         }
 
-        // Error Snackbar
-        uiState.error?.let { error ->
-            LaunchedEffect(error) {
-                // Show snackbar (simplified)
-                viewModel.clearError()
-            }
-        }
-
-        // Delete Photo Confirmation Dialog
-        if (showDeletePhotoDialog) {
+        // Logout Confirmation Dialog
+        if (showLogoutDialog) {
             AlertDialog(
-                onDismissRequest = { showDeletePhotoDialog = false },
-                title = { Text("Delete Profile Photo") },
-                text = { Text("Are you sure you want to delete your profile photo?") },
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Logout") },
+                text = { Text("Are you sure you want to logout?") },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.deleteProfilePhoto()
-                            showDeletePhotoDialog = false
+                            showLogoutDialog = false
+                            viewModel.logout()
+                            onLogout()
                         }
                     ) {
-                        Text("Delete")
+                        Text("Logout", color = Color(0xFFEF4444))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeletePhotoDialog = false }) {
+                    TextButton(onClick = { showLogoutDialog = false }) {
                         Text("Cancel")
                     }
                 }
             )
         }
-    }
-}
 
-@Composable
-fun ProfilePhotoSection(
-    photoUrl: String?,
-    isUploading: Boolean,
-    onPhotoClick: () -> Unit,
-    onDeleteClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier.size(120.dp)
-        ) {
-            if (photoUrl != null) {
-                AsyncImage(
-                    model = photoUrl,
-                    contentDescription = "Profile Photo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                        .clickable(onClick = onPhotoClick),
-                    contentScale = ContentScale.Crop
-                )
-
-                // Delete button
-                IconButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(32.dp)
-                        .background(MaterialTheme.colorScheme.error, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Delete Photo",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable(onClick = onPhotoClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "Add Photo",
-                        modifier = Modifier.size(60.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-
-            if (isUploading) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(40.dp)
-                )
+        // Success/Error Messages
+        uiState.successMessage?.let { message ->
+            Snackbar(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(message)
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = if (photoUrl != null) "Tap to change photo" else "Tap to add photo",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        uiState.error?.let { error ->
+            Snackbar(
+                modifier = Modifier.padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.error
+            ) {
+                Text(error)
+            }
+        }
     }
 }
 
 @Composable
-fun ProfileInfoCard(profile: com.example.somashare.data.repository.FirebaseUserProfile) {
+fun StatCard(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        modifier = modifier.then(
+            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+        ),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ProfileInfoRow(
-                icon = Icons.Default.Person,
-                label = "Name",
-                value = profile.fullName
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = Color(0xFF4F46E5),
+                modifier = Modifier.size(32.dp)
             )
-
-            ProfileInfoRow(
-                icon = Icons.Default.Email,
-                label = "Email",
-                value = profile.email
-            )
-
-            ProfileInfoRow(
-                icon = Icons.Default.School,
-                label = "Course",
-                value = profile.course
-            )
-
-            ProfileInfoRow(
-                icon = Icons.Default.DateRange,
-                label = "Year of Study",
-                value = "Year ${profile.yearOfStudy}"
-            )
-        }
-    }
-}
-
-@Composable
-fun ProfileInfoRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF111827)
+            )
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                color = Color(0xFF6B7280)
             )
         }
     }
 }
 
 @Composable
-fun EditProfileSection(
-    name: String,
-    course: String,
-    year: Int,
-    onNameChange: (String) -> Unit,
-    onCourseChange: (String) -> Unit,
-    onYearChange: (Int) -> Unit,
-    onSave: () -> Unit,
-    onCancel: () -> Unit
-) {
+fun PaperListItem(paper: com.example.somashare.data.model.PastPaper) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = onNameChange,
-                label = { Text("Full Name") },
-                leadingIcon = { Icon(Icons.Default.Person, null) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = course,
-                onValueChange = onCourseChange,
-                label = { Text("Course") },
-                leadingIcon = { Icon(Icons.Default.School, null) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Year selector
-            var expandedYear by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = expandedYear,
-                onExpandedChange = { expandedYear = it }
-            ) {
-                OutlinedTextField(
-                    value = "Year $year",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Year of Study") },
-                    leadingIcon = { Icon(Icons.Default.DateRange, null) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYear) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor()
-                )
-
-                ExposedDropdownMenu(
-                    expanded = expandedYear,
-                    onDismissRequest = { expandedYear = false }
-                ) {
-                    (1..5).forEach { yearOption ->
-                        DropdownMenuItem(
-                            text = { Text("Year $yearOption") },
-                            onClick = {
-                                onYearChange(yearOption)
-                                expandedYear = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Cancel")
-                }
-
-                Button(
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Save")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun StatsCard(uploadedCount: Int, downloadedCount: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatItem(
-                icon = Icons.Default.Upload,
-                label = "Uploaded",
-                count = uploadedCount
-            )
-
-            Divider(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(50.dp)
-            )
-
-            StatItem(
-                icon = Icons.Default.Download,
-                label = "Downloaded",
-                count = downloadedCount
-            )
-        }
-    }
-}
-
-@Composable
-fun StatItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    count: Int
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-fun ResourcesTabs(
-    selectedTab: ResourcesTab,
-    onTabSelected: (ResourcesTab) -> Unit
-) {
-    TabRow(selectedTabIndex = selectedTab.ordinal) {
-        Tab(
-            selected = selectedTab == ResourcesTab.UPLOADED,
-            onClick = { onTabSelected(ResourcesTab.UPLOADED) },
-            text = { Text("Uploaded") }
-        )
-        Tab(
-            selected = selectedTab == ResourcesTab.DOWNLOADED,
-            onClick = { onTabSelected(ResourcesTab.DOWNLOADED) },
-            text = { Text("Downloaded") }
-        )
-    }
-}
-
-@Composable
-fun UploadedResourceItem(
-    resource: com.example.somashare.data.repository.UploadedResource
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Default.Description,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = Color(0xFF4F46E5),
                 modifier = Modifier.size(40.dp)
             )
 
+            Spacer(modifier = Modifier.width(16.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = resource.paperName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    text = paper.paperName,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp
                 )
                 Text(
-                    text = resource.unitName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatDate(resource.uploadDate),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "${paper.unitCode} • ${paper.paperType.displayName}",
+                    fontSize = 14.sp,
+                    color = Color(0xFF6B7280)
                 )
             }
+
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF9CA3AF)
+            )
         }
     }
 }
 
 @Composable
-fun DownloadedResourceItem(
-    resource: com.example.somashare.data.repository.DownloadedResource
+fun EmptyState(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    message: String
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6))
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                Icons.Default.Download,
+                icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(64.dp),
+                tint = Color(0xFF9CA3AF)
             )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = resource.paperName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = resource.unitName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatDate(resource.downloadDate),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = message,
+                color = Color(0xFF6B7280),
+                fontSize = 16.sp
+            )
         }
     }
-}
-
-private fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    return sdf.format(Date(timestamp))
 }

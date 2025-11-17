@@ -40,6 +40,11 @@ class UserRepository {
         }
     }
 
+    // Update profile photo
+    suspend fun updateProfilePhoto(userId: String, photoUrl: String): Result<Unit> {
+        return updateUser(userId, mapOf("profilePhotoUrl" to photoUrl))
+    }
+
     // Update year and semester
     suspend fun updateYearAndSemester(
         userId: String,
@@ -54,4 +59,30 @@ class UserRepository {
             )
         )
     }
+    // Increment uploaded papers count
+    suspend fun incrementUploadedPapersCount(userId: String): Result<Unit> {
+        return try {
+            firestore.collection("users")
+                .document(userId)
+                .update("uploadedPapersCount", com.google.firebase.firestore.FieldValue.increment(1))
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Increment downloaded papers count
+    suspend fun incrementDownloadedPapersCount(userId: String): Result<Unit> {
+        return try {
+            firestore.collection("users")
+                .document(userId)
+                .update("downloadedPapersCount", com.google.firebase.firestore.FieldValue.increment(1))
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+

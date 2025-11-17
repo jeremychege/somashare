@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
     id("com.google.devtools.ksp")
-
 }
 
 android {
@@ -44,7 +43,15 @@ android {
 }
 
 dependencies {
+        // Import the Firebase BoM
+        implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
 
+        // Declare the Firebase dependencies without versions
+        implementation("com.google.firebase:firebase-storage-ktx")
+        implementation("com.google.firebase:firebase-analytics-ktx")
+
+        // Your other dependencies
+        implementation("com.github.barteksc:android-pdf-viewer:3.2.0-beta.1")
     // Navigation
     implementation(libs.androidx.navigation.compose)
 

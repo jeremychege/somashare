@@ -29,7 +29,8 @@ class AuthRepository {
         fullName: String,
         yearOfStudy: Int,
         semesterOfStudy: Int,
-        department: String
+        department: String,
+        course: String = ""
     ): Result<User> {
         return try {
             // Create auth user
@@ -44,6 +45,7 @@ class AuthRepository {
                 yearOfStudy = yearOfStudy,
                 semesterOfStudy = semesterOfStudy,
                 department = department,
+                course = course,
                 createdAt = System.currentTimeMillis(),
                 isActive = true
             )

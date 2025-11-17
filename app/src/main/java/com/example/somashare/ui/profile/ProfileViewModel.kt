@@ -1,36 +1,36 @@
-package com.example.somashare.userinterface.profile
+package com.example.somashare.ui.profile
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.somashare.data.repository.DownloadedResource
-import com.example.somashare.data.repository.FirebaseRepository
-import com.example.somashare.data.repository.FirebaseUserProfile
-import com.example.somashare.data.repository.UploadedResource
+import com.example.somashare.data.model.PastPaper
+import com.example.somashare.data.model.User
+import com.example.somashare.data.repository.AuthRepository
+import com.example.somashare.data.repository.PaperRepository
+import com.example.somashare.data.repository.StorageRepository
+import com.example.somashare.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProfileUiState(
     val isLoading: Boolean = false,
-    val profile: FirebaseUserProfile? = null,
-    val uploadedResources: List<UploadedResource> = emptyList(),
-    val downloadedResources: List<DownloadedResource> = emptyList(),
+    val user: User? = null,
+    val uploadedPapers: List<PastPaper> = emptyList(),
+    val downloadedPapers: List<PastPaper> = emptyList(),
+    val isUploadingPhoto: Boolean = false,
+    val uploadPhotoProgress: Int = 0,
     val error: String? = null,
-    val isEditMode: Boolean = false,
-    val uploadingPhoto: Boolean = false,
-    val showResourcesTab: ResourcesTab = ResourcesTab.UPLOADED
+    val successMessage: String? = null
 )
 
-enum class ResourcesTab {
-    UPLOADED,
-    DOWNLOADED
-}
-
-class ProfileViewModel(
-    private val firebaseRepository: FirebaseRepository = FirebaseRepository()
-) : ViewModel() {
+class ProfileViewModel : ViewModel() {
+    private val authRepository = AuthRepository()
+    private val userRepository = UserRepository()
+    private val paperRepository = PaperRepository()
+    private val storageRepository = StorageRepository()
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -39,145 +39,113 @@ class ProfileViewModel(
         loadProfile()
     }
 
-    fun loadProfile() {
+    private fun loadProfile() {
+        val userId = authRepository.getCurrentUserId() ?: return
+
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.update { it.copy(isLoading = true) }
 
-            val userId = firebaseRepository.getCurrentUserId()
-            if (userId == null) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "User not logged in"
-                )
-                return@launch
+            // Load user data
+            userRepository.getUserById(userId).collect { user ->
+                _uiState.update { it.copy(user = user, isLoading = false) }
             }
+        }
 
-            // Load profile
-            val profileResult = firebaseRepository.getUserProfile(userId)
-            if (profileResult.isFailure) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = profileResult.exceptionOrNull()?.message ?: "Failed to load profile"
-                )
-                return@launch
+        // Load uploaded papers
+        viewModelScope.launch {
+            paperRepository.getAllPapers(100).collect { papers ->
+                val userPapers = papers.filter { it.uploadedBy == userId }
+                _uiState.update { it.copy(uploadedPapers = userPapers) }
             }
-
-            val profile = profileResult.getOrNull()
-
-            // Load uploaded resources
-            val uploadedResult = firebaseRepository.getUploadedResources(userId)
-            val uploadedResources = uploadedResult.getOrNull() ?: emptyList()
-
-            // Load downloaded resources
-            val downloadedResult = firebaseRepository.getDownloadedResources(userId)
-            val downloadedResources = downloadedResult.getOrNull() ?: emptyList()
-
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                profile = profile,
-                uploadedResources = uploadedResources,
-                downloadedResources = downloadedResources
-            )
         }
     }
 
-    fun toggleEditMode() {
-        _uiState.value = _uiState.value.copy(
-            isEditMode = !_uiState.value.isEditMode
-        )
-    }
+    fun uploadProfilePhoto(uri: Uri) {
+        val userId = authRepository.getCurrentUserId() ?: return
 
-    fun updateProfile(fullName: String, course: String, year: Int) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.update { it.copy(isUploadingPhoto = true, error = null) }
 
-            val userId = firebaseRepository.getCurrentUserId()
-            if (userId == null) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "User not logged in"
-                )
-                return@launch
-            }
-
-            val result = firebaseRepository.updateUserProfile(
+            val uploadResult = storageRepository.uploadProfilePhoto(
+                fileUri = uri,
                 userId = userId,
-                fullName = fullName,
-                course = course,
-                yearOfStudy = year
+                onProgress = { progress ->
+                    _uiState.update { it.copy(uploadPhotoProgress = progress) }
+                }
             )
 
-            if (result.isSuccess) {
-                loadProfile()
-                _uiState.value = _uiState.value.copy(isEditMode = false)
+            if (uploadResult.isSuccess) {
+                val photoUrl = uploadResult.getOrNull() ?: ""
+                val updateResult = userRepository.updateProfilePhoto(userId, photoUrl)
+
+                if (updateResult.isSuccess) {
+                    _uiState.update {
+                        it.copy(
+                            isUploadingPhoto = false,
+                            uploadPhotoProgress = 0,
+                            successMessage = "Profile photo updated successfully"
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isUploadingPhoto = false,
+                            uploadPhotoProgress = 0,
+                            error = "Failed to update profile photo"
+                        )
+                    }
+                }
             } else {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = result.exceptionOrNull()?.message ?: "Failed to update profile"
-                )
+                _uiState.update {
+                    it.copy(
+                        isUploadingPhoto = false,
+                        uploadPhotoProgress = 0,
+                        error = uploadResult.exceptionOrNull()?.message ?: "Upload failed"
+                    )
+                }
             }
         }
     }
 
-    fun uploadProfilePhoto(imageUri: Uri) {
+    fun updateProfile(fullName: String, course: String, year: Int, semester: Int, department: String) {
+        val userId = authRepository.getCurrentUserId() ?: return
+
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(uploadingPhoto = true, error = null)
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-            val userId = firebaseRepository.getCurrentUserId()
-            if (userId == null) {
-                _uiState.value = _uiState.value.copy(
-                    uploadingPhoto = false,
-                    error = "User not logged in"
-                )
-                return@launch
-            }
+            val updates = mapOf(
+                "fullName" to fullName,
+                "course" to course,
+                "yearOfStudy" to year,
+                "semesterOfStudy" to semester,
+                "department" to department
+            )
 
-            val result = firebaseRepository.uploadProfilePhoto(userId, imageUri)
+            val result = userRepository.updateUser(userId, updates)
 
             if (result.isSuccess) {
-                loadProfile()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        successMessage = "Profile updated successfully"
+                    )
+                }
             } else {
-                _uiState.value = _uiState.value.copy(
-                    uploadingPhoto = false,
-                    error = result.exceptionOrNull()?.message ?: "Failed to upload photo"
-                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = result.exceptionOrNull()?.message ?: "Update failed"
+                    )
+                }
             }
         }
     }
 
-    fun deleteProfilePhoto() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(uploadingPhoto = true, error = null)
-
-            val userId = firebaseRepository.getCurrentUserId()
-            val photoUrl = _uiState.value.profile?.photoUrl
-
-            if (userId == null || photoUrl == null) {
-                _uiState.value = _uiState.value.copy(
-                    uploadingPhoto = false,
-                    error = "Cannot delete photo"
-                )
-                return@launch
-            }
-
-            val result = firebaseRepository.deleteProfilePhoto(userId, photoUrl)
-
-            if (result.isSuccess) {
-                loadProfile()
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    uploadingPhoto = false,
-                    error = result.exceptionOrNull()?.message ?: "Failed to delete photo"
-                )
-            }
-        }
+    fun logout() {
+        authRepository.logout()
     }
 
-    fun switchResourcesTab(tab: ResourcesTab) {
-        _uiState.value = _uiState.value.copy(showResourcesTab = tab)
-    }
-
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+    fun clearMessages() {
+        _uiState.update { it.copy(error = null, successMessage = null) }
     }
 }
